@@ -37,9 +37,9 @@ def example(src_name, dest_name, bvh_name, test_type, output_path):
     os.system(cmd)
 
     fix_foot_contact(pjoin(output_path, 'result.bvh'),
-                     pjoin(output_path, 'input.bvh'),
-                     pjoin(output_path, 'result.bvh'),
-                     height)
+                    pjoin(output_path, 'input.bvh'),
+                    pjoin(output_path, 'result.bvh'),
+                    height)
 
 
 if __name__ == '__main__':

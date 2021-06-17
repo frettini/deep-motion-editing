@@ -14,9 +14,9 @@ def batch_copy(source_path, suffix, dest_path, dest_suffix=None):
     length = len('_{}.bvh'.format(suffix))
     for f in files:
         if dest_suffix is not None:
-            cmd = 'cp \"{}\" \"{}\"'.format(os.path.join(source_path, f), os.path.join(dest_path, f[:-length] + '_{}.bvh'.format(dest_suffix)))
+            cmd = 'powershell.exe copy \"{}\" \"{}\"'.format(os.path.join(source_path, f), os.path.join(dest_path, f[:-length] + '_{}.bvh'.format(dest_suffix)))
         else:
-            cmd = 'cp \"{}\" \"{}\"'.format(os.path.join(source_path, f), os.path.join(dest_path, f[:-length] + '.bvh'))
+            cmd = 'powershell.exe copy \"{}\" \"{}\"'.format(os.path.join(source_path, f), os.path.join(dest_path, f[:-length] + '.bvh'))
         os.system(cmd)
 
 

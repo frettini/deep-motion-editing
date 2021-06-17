@@ -187,5 +187,6 @@ if __name__ == '__main__':
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete()
 
-    file_name = './example.bvh'
+    # file_name = './example.bvh'
+    file_name = '../retargeting/examples/cross_structure/result.bvh'
     load_bvh(file_name)

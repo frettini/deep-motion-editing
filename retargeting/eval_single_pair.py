@@ -52,12 +52,16 @@ def main():
     # argsparse can't take space character as part of the argument
     args.input_bvh = recover_space(args.input_bvh)
     args.target_bvh = recover_space(args.target_bvh)
-    args.output_filename = recover_space(args.output_filename)
+    # args.output_filename = recover_space(args.output_filename)
+    args.output_filename = args.output_filename
+
 
     character_names, file_id, src_id = eval_prepare(args)
     input_character_name = args.input_bvh.split('/')[-2]
     output_character_name = args.target_bvh.split('/')[-2]
     output_filename = args.output_filename
+
+    print("output filename: " + output_filename)
 
     test_device = args.cuda_device
     eval_seq = args.eval_seq
@@ -91,7 +95,7 @@ def main():
     model.set_input(input_motion)
     model.test()
 
-    os.system('cp "{}/{}/0_{}.bvh" "./{}"'.format(model.bvh_path, output_character_name, src_id, output_filename))
+    os.system('powershell.exe copy "{}/{}/0_{}.bvh" "{}"'.format(model.bvh_path, output_character_name, src_id, output_filename))
 
 
 if __name__ == '__main__':
