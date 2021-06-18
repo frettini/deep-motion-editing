@@ -36,6 +36,7 @@ def write_statistics(character, path):
     mean = mean.cpu().numpy()[0, ...]
     var = var.cpu().numpy()[0, ...]
 
+    # save mean and var to path
     np.save(path + '{}_mean.npy'.format(character), mean)
     np.save(path + '{}_var.npy'.format(character), var)
 

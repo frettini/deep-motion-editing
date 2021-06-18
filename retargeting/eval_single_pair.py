@@ -11,9 +11,11 @@ def eval_prepare(args):
     character_names = []
     character_names.append(args.input_bvh.split('/')[-2])
     character_names.append(args.target_bvh.split('/')[-2])
+
+    # identify which character is used
     if args.test_type == 'intra':
         if character_names[0].endswith('_m'):
-            character = [['BigVegas', 'BigVegas'], character_names]
+            character = [['BigVegas', 'BigVegas'], character_names] # not sure why BigVegas is hardcoded here
             file_id = [[0, 0], [args.input_bvh, args.input_bvh]]
             src_id = 1
         else:
@@ -64,26 +66,29 @@ def main():
     print("output filename: " + output_filename)
 
     test_device = args.cuda_device
-    eval_seq = args.eval_seq
+    eval_seq = args.eval_seq # default false
 
+    # read and initialize the args parameters using para.txt
+    # note that epoch number is at 30000, meaning that we will load the code
     para_path = os.path.join(args.save_dir, 'para.txt')
     with open(para_path, 'r') as para_file:
         argv_ = para_file.readline().split()[1:]
         args = option_parser.get_parser().parse_args(argv_)
 
     args.cuda_device = test_device if torch.cuda.is_available() else 'cpu'
-    args.is_train = False
+    args.is_train = False # important as this indicates to the rest of the code that we are in inference mode
     args.rotation = 'quaternion'
     args.eval_seq = eval_seq
 
     dataset = create_dataset(args, character_names)
 
     model = create_model(args, character_names, dataset)
-    model.load(epoch=20000)
+    model.load(epoch=20000) # loads at a set epoch
 
     input_motion = []
     for i, character_group in enumerate(character_names):
         input_group = []
+        # get motion and normalize
         for j in range(len(character_group)):
             new_motion = dataset.get_item(i, j, file_id[i][j])
             new_motion.unsqueeze_(0)
@@ -95,6 +100,7 @@ def main():
     model.set_input(input_motion)
     model.test()
 
+    # for windows need to use powershell to use copy
     os.system('powershell.exe copy "{}/{}/0_{}.bvh" "{}"'.format(model.bvh_path, output_character_name, src_id, output_filename))
 
 

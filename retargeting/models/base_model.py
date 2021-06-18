@@ -83,7 +83,7 @@ class BaseModel(ABC):
         self.loss_recoder.epoch()
         for scheduler in self.schedulers:
             if scheduler is not None:
-                scheduler.step()
+                scheduler.step() # step and calculate the step size at the same size
         self.epoch_cnt += 1
 
     def test(self):

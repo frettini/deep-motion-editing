@@ -13,7 +13,7 @@ class GAN_loss(nn.Module):
         self.register_buffer('real_label', torch.tensor(real_lable))
         self.register_buffer('fake_label', torch.tensor(fake_lable))
         self.gan_mode = gan_mode
-        if gan_mode == 'lsgan':
+        if gan_mode == 'lsgan': # default GAN 
             self.loss = nn.MSELoss()
         elif gan_mode == 'vanilla':
             self.loss = nn.BCEWithLogitsLoss()
@@ -34,7 +34,7 @@ class GAN_loss(nn.Module):
         loss = self.loss(prediction, target_tensor)
         return loss
 
-
+# End Effector Criterion, based on MSELoss
 class Criterion_EE:
     def __init__(self, args, base_criterion, norm_eps=0.008):
         self.args = args

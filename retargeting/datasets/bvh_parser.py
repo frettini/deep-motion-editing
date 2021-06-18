@@ -253,12 +253,14 @@ class BVH_file:
         write_bvh(self.topology, self.offset, rotations, positions, self.names, 1.0/30, 'xyz', file_path)
 
     def get_ee_length(self):
+        # if defined return it, otherwise compute it
         if len(self.ee_length): return self.ee_length
+
         degree = [0] * len(self.topology)
         for i in self.topology:
             if i < 0: continue
             degree[i] += 1
-
+        # compute length of offset and add them?
         for j in self.ee_id:
             length = 0
             while degree[j] <= 1:

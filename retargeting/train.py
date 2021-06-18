@@ -25,6 +25,7 @@ def main():
 
     model = create_model(args, characters, dataset)
 
+    # default false, used to load the model at a specific stage
     if args.epoch_begin:
         model.load(epoch=args.epoch_begin, download=False)
 
@@ -32,6 +33,7 @@ def main():
 
     start_time = time.time()
 
+    # default number of epoch -> 20000
     for epoch in range(args.epoch_begin, args.epoch_num):
         for step, motions in enumerate(data_loader):
             model.set_input(motions)
@@ -46,8 +48,8 @@ def main():
 
         model.epoch()
 
-    end_tiem = time.time()
-    print('training time', end_tiem - start_time)
+    end_time = time.time()
+    print('training time', end_time - start_time)
 
 
 if __name__ == '__main__':

@@ -34,6 +34,7 @@ class MotionData(Dataset):
         self.data = torch.cat(self.data)
         self.data = self.data.permute(0, 2, 1)
 
+        # normalize data so it is uniform irregardless of size 
         if args.normalization == 1:
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.var = torch.var(self.data, (0, 2), keepdim=True)

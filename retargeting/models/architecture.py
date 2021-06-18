@@ -12,14 +12,15 @@ class GAN_model(BaseModel):
     def __init__(self, args, character_names, dataset):
         super(GAN_model, self).__init__(args)
         self.character_names = character_names
-        self.dataset = dataset
-        self.n_topology = len(character_names)
+        self.dataset = dataset # the full MixedData dataset
+        self.n_topology = len(character_names) # n topology is equal to two!
         self.models = []
-        self.D_para = []
-        self.G_para = []
+        self.D_para = [] # discriminator parameters
+        self.G_para = [] # generator parameters
         self.args = args
 
         for i in range(self.n_topology):
+            # create a model per different topologies, aka 2, pass in the joint topology and character names
             model = IntegratedModel(args, dataset.joint_topologies[i], None, self.device, character_names[i])
             self.models.append(model)
             self.D_para += model.D_parameters()
@@ -30,14 +31,17 @@ class GAN_model(BaseModel):
             self.optimizerD = optim.Adam(self.D_para, args.learning_rate, betas=(0.9, 0.999))
             self.optimizerG = optim.Adam(self.G_para, args.learning_rate, betas=(0.9, 0.999))
             self.optimizers = [self.optimizerD, self.optimizerG]
-            self.criterion_rec = torch.nn.MSELoss()
-            self.criterion_gan = GAN_loss(args.gan_mode).to(self.device)
-            self.criterion_cycle = torch.nn.L1Loss()
+            # various losses used to propagate the gradient back
+            self.criterion_rec = torch.nn.MSELoss() # reconstruction loss
+            self.criterion_gan = GAN_loss(args.gan_mode).to(self.device) # gan mode by default is lsgan
+            self.criterion_cycle = torch.nn.L1Loss() # consistency loss
             self.criterion_ee = Criterion_EE(args, torch.nn.MSELoss())
+            # create pools of data to store various Generator results
             for i in range(self.n_topology):
                 self.fake_pools.append(ImagePool(args.pool_size))
         else:
             import option_parser
+            # load the criterion used for evaluation
             self.err_crit = []
             for i in range(self.n_topology):
                 self.err_crit.append(Eval_Criterion(dataset.joint_topologies[i]))
@@ -88,6 +92,7 @@ class GAN_model(BaseModel):
         self.motion_denorm = []
         self.rnd_idx = []
 
+        # get the offset code from the static encoder forward pass
         for i in range(self.n_topology):
             self.offset_repr.append(self.models[i].static_encoder(self.dataset.offsets[i]))
 
@@ -97,17 +102,23 @@ class GAN_model(BaseModel):
             motion = motion.to(self.device)
             self.motions.append(motion)
 
+            # get the mean and variance of each bone of the skeleton
             motion_denorm = self.dataset.denorm(i, offset_idx, motion)
             self.motion_denorm.append(motion_denorm)
+            # offsets are needed within the auto_encoder, save and transfer
             offsets = [self.offset_repr[i][p][offset_idx] for p in range(self.args.num_layers + 1)]
+
+            # forward pass auto encoder 
             latent, res = self.models[i].auto_encoder(motion, offsets)
             res_denorm = self.dataset.denorm(i, offset_idx, res)
+            # get resulting pose by applying the forward kinematics
             res_pos = self.models[i].fk.forward_from_raw(res_denorm, self.dataset.offsets[i][offset_idx])
             self.res_pos.append(res_pos)
             self.latents.append(latent)
             self.res.append(res)
             self.res_denorm.append(res_denorm)
 
+            # ground truth pos and end effector position
             pos = self.models[i].fk.forward_from_raw(motion_denorm, self.dataset.offsets[i][offset_idx]).detach()
             ee = get_ee(pos, self.dataset.joint_topologies[i], self.dataset.ee_ids[i],
                         velo=self.args.ee_velo, from_root=self.args.ee_from_root)
@@ -120,15 +131,20 @@ class GAN_model(BaseModel):
         # retargeting
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
+                # randomly chose from one of the characters
                 if self.is_train:
                     rnd_idx = torch.randint(len(self.character_names[dst]), (self.latents[src].shape[0],))
                 else:
                     rnd_idx = list(range(self.latents[0].shape[0]))
+
                 self.rnd_idx.append(rnd_idx)
                 dst_offsets_repr = [self.offset_repr[dst][p][rnd_idx] for p in range(self.args.num_layers + 1)]
+                # pick a latent code from source, and feed it through the decoder
                 fake_res = self.models[dst].auto_encoder.dec(self.latents[src], dst_offsets_repr)
+                # get the latent space of the result through the destination encoder
                 fake_latent = self.models[dst].auto_encoder.enc(fake_res, dst_offsets_repr)
 
+                # get the position and end effectors from the resulting retargetting
                 fake_res_denorm = self.dataset.denorm(dst, rnd_idx, fake_res)
                 fake_pos = self.models[dst].fk.forward_from_raw(fake_res_denorm, self.dataset.offsets[dst][rnd_idx])
                 fake_ee = get_ee(fake_pos, self.dataset.joint_topologies[dst], self.dataset.ee_ids[dst],
@@ -171,7 +187,7 @@ class GAN_model(BaseModel):
         A->A, A->B, B->A, B->B@[0, 1, 2, 3]
         """
         for i in range(self.n_topology):
-            fake = self.fake_pools[i].query(self.fake_pos[2 - i])
+            fake = self.fake_pools[i].query(self.fake_pos[2 - i]) # add and query fake pos at the same time
             self.loss_Ds.append(self.backward_D_basic(self.models[i].discriminator, self.pos_ref[i].detach(), fake))
             self.loss_D += self.loss_Ds[-1]
             self.loss_recoder.add_scalar('D_loss_{}'.format(i), self.loss_Ds[-1])
@@ -184,22 +200,27 @@ class GAN_model(BaseModel):
         self.loss_G = 0
         self.ee_loss = 0
         self.loss_G_total = 0
+
         for i in range(self.n_topology):
+            # reconstruction loss (MSE) quaternion
             rec_loss1 = self.criterion_rec(self.motions[i], self.res[i])
             self.loss_recoder.add_scalar('rec_loss_quater_{}'.format(i), rec_loss1)
 
+            # position reconstruction loss
             height = self.models[i].real_height[self.motions_input[i][1]]
             height = height.reshape(height.shape + (1, 1,))
             input_pos = self.motion_denorm[i][:, -3:, :] / height
             rec_pos = self.res_denorm[i][:, -3:, :] / height
-            rec_loss2 = self.criterion_rec(input_pos, rec_pos)
+            rec_loss2 = self.criterion_rec(input_pos, rec_pos) 
             self.loss_recoder.add_scalar('rec_loss_global_{}'.format(i), rec_loss2)
 
+            # global pose recon loss?
             pos_ref_global = self.models[i].fk.from_local_to_world(self.pos_ref[i]) / height.reshape(height.shape + (1, ))
             res_pos_global = self.models[i].fk.from_local_to_world(self.res_pos[i]) / height.reshape(height.shape + (1, ))
             rec_loss3 = self.criterion_rec(pos_ref_global, res_pos_global)
             self.loss_recoder.add_scalar('rec_loss_position_{}'.format(i), rec_loss3)
 
+            # global pose and position default 2.5 and 1, they might have inverted rec loss 2 and 3 
             rec_loss = rec_loss1 + (rec_loss2 * self.args.lambda_global_pose +
                                     rec_loss3 * self.args.lambda_position) * 100
 
@@ -209,14 +230,17 @@ class GAN_model(BaseModel):
         p = 0
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
+                # consistency loss, latent source and destination
                 cycle_loss = self.criterion_cycle(self.latents[src], self.fake_latent[p])
                 self.loss_recoder.add_scalar('cycle_loss_{}_{}'.format(src, dst), cycle_loss)
                 self.cycle_loss += cycle_loss
 
+                # end effector loss
                 ee_loss = self.criterion_ee(self.ee_ref[src], self.fake_ee[p])
                 self.loss_recoder.add_scalar('ee_loss_{}_{}'.format(src, dst), ee_loss)
                 self.ee_loss += ee_loss
 
+                # Generator loss from the discriminator
                 if src != dst:
                     if self.args.gan_mode != 'none':
                         loss_G = self.criterion_gan(self.models[dst].discriminator(self.fake_pos[p]), True)
@@ -227,27 +251,28 @@ class GAN_model(BaseModel):
 
                 p += 1
 
+        # assemble everything and do backpropagation
         self.loss_G_total = self.rec_loss * self.args.lambda_rec  + \
                             self.cycle_loss * self.args.lambda_cycle / 2 + \
                             self.ee_loss * self.args.lambda_ee / 2 + \
                             self.loss_G * 1
-        self.loss_G_total.backward()
+        self.loss_G_total.backward() # compute gradient of current tensor
 
     def optimize_parameters(self):
         self.forward()
 
         # update Gs
         self.discriminator_requires_grad_(False)
-        self.optimizerG.zero_grad()
-        self.backward_G()
-        self.optimizerG.step()
+        self.optimizerG.zero_grad() # reset gradients
+        self.backward_G() 
+        self.optimizerG.step() # apply gradient to generator
 
         # update Ds
-        if self.args.gan_mode != 'none':
+        if self.args.gan_mode != 'none': # default lsgan
             self.discriminator_requires_grad_(True)
             self.optimizerD.zero_grad()
             self.backward_D()
-            self.optimizerD.step()
+            self.optimizerD.step() # apply gradient to discrim
         else:
             self.loss_D = torch.tensor(0)
 

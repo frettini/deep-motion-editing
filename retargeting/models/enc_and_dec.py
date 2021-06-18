@@ -16,24 +16,27 @@ class Encoder(nn.Module):
         self.args = args
         self.convs = []
 
+        # initialize convolution kernel
         kernel_size = args.kernel_size
         padding = (kernel_size - 1) // 2
         bias = True
-        if args.skeleton_info == 'concat': add_offset = True
+        if args.skeleton_info == 'concat': add_offset = True # default concat
         else: add_offset = False
 
-        for i in range(args.num_layers):
+        for i in range(args.num_layers): #default 2
+            # multiply the number of channels by two for every layer
             self.channel_base.append(self.channel_base[-1] * 2)
 
+        # Construct the layers and their operators
         for i in range(args.num_layers):
-            seq = []
-            neighbor_list = find_neighbor(self.topologies[i], args.skeleton_dist)
+            seq = [] # sequence of operators (SkeletonConv, Pool etc)
+            neighbor_list = find_neighbor(self.topologies[i], args.skeleton_dist) #default 2
             in_channels = self.channel_base[i] * self.edge_num[i]
             out_channels = self.channel_base[i+1] * self.edge_num[i]
             if i == 0: self.channel_list.append(in_channels)
             self.channel_list.append(out_channels)
 
-            for _ in range(args.extra_conv):
+            for _ in range(args.extra_conv): #default 0
                 seq.append(SkeletonConv(neighbor_list, in_channels=in_channels, out_channels=in_channels,
                                         joint_num=self.edge_num[i], kernel_size=kernel_size, stride=1,
                                         padding=padding, padding_mode=args.padding_mode, bias=bias))
@@ -49,7 +52,7 @@ class Encoder(nn.Module):
             seq.append(nn.LeakyReLU(negative_slope=0.2))
             self.layers.append(nn.Sequential(*seq))
 
-            self.topologies.append(pool.new_edges)
+            self.topologies.append(pool.new_edges) # add the new topologies created by the pooling operator
             self.pooling_list.append(pool.pooling_list)
             self.edge_num.append(len(self.topologies[-1]) + 1)
             if i == args.num_layers - 1:
@@ -61,7 +64,7 @@ class Encoder(nn.Module):
             input = torch.cat((input, torch.zeros_like(input[:, [0], :])), dim=1)
 
         for i, layer in enumerate(self.layers):
-            if self.args.skeleton_info == 'concat' and offset is not None:
+            if self.args.skeleton_info == 'concat' and offset is not None: #default concat
                 self.convs[i].set_offset(offset[i])
             input = layer(input)
         return input
@@ -73,7 +76,7 @@ class Decoder(nn.Module):
         self.layers = nn.ModuleList()
         self.unpools = nn.ModuleList()
         self.args = args
-        self.enc = enc
+        self.enc = enc # needs a reference to the encoder for the unpooling operation
         self.convs = []
 
         kernel_size = args.kernel_size
@@ -95,6 +98,7 @@ class Decoder(nn.Module):
 
             self.unpools.append(SkeletonUnpool(enc.pooling_list[args.num_layers - i - 1], in_channels // len(neighbor_list)))
 
+            # add the upsampling, unpooling and squeleton to the layers
             seq.append(nn.Upsample(scale_factor=2, mode=args.upsampling, align_corners=False))
             seq.append(self.unpools[-1])
             for _ in range(args.extra_conv):
@@ -159,6 +163,7 @@ class StaticEncoder(nn.Module):
 
     # input should have shape B * E * 3
     def forward(self, input: torch.Tensor):
+        # record every output from every layer since we are going to use it later
         output = [input]
         for i, layer in enumerate(self.layers):
             input = layer(input)

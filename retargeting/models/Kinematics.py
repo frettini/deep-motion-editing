@@ -6,15 +6,17 @@ import math
 
 class ForwardKinematics:
     def __init__(self, args, edges):
-        self.topology = [-1] * (len(edges) + 1)
+        self.topology = [-1] * (len(edges) + 1) # initialize with list of -1
         self.rotation_map = []
+
+        # recreate the topology and corresponding rotation map
         for i, edge in enumerate(edges):
-            self.topology[edge[1]] = edge[0]
+            self.topology[edge[1]] = edge[0] # add the correct topology data (edge[1] is index)
             self.rotation_map.append(edge[1])
 
-        self.world = args.fk_world
+        self.world = args.fk_world # default false
         self.pos_repr = args.pos_repr
-        self.quater = args.rotation == 'quaternion'
+        self.quater = args.rotation == 'quaternion' # worst bool name :(
 
     def forward_from_raw(self, raw, offset, world=None, quater=None):
         if world is None: world = self.world

@@ -69,9 +69,10 @@ class MixedData(Dataset):
                 var = torch.tensor(var)
                 var = var.reshape((1,) + var.shape)
 
-                means_group.append(mean)
+                means_group.append(mean) 
                 vars_group.append(var)
 
+                # get the topology and end effector of each skeleton in the dataset -> id is the index in the corps list
                 file = BVH_file(get_std_bvh(dataset=dataset))
                 if i == 0:
                     self.joint_topologies.append(file.topology)
@@ -81,9 +82,10 @@ class MixedData(Dataset):
                 new_offset = new_offset.reshape((1,) + new_offset.shape)
                 offsets_group.append(new_offset)
 
-                total_length = min(total_length, len(tmp[-1]))
+                total_length = min(total_length, len(tmp[-1])) # total length of the dataset
             all_datas.append(tmp)
-            offsets_group = torch.cat(offsets_group, dim=0)
+            # concatenate the offset, mean and variance of all dataset motion
+            offsets_group = torch.cat(offsets_group, dim=0) 
             offsets_group = offsets_group.to(device)
             means_group = torch.cat(means_group, dim=0).to(device)
             vars_group = torch.cat(vars_group, dim=0).to(device)
@@ -91,7 +93,7 @@ class MixedData(Dataset):
             self.means.append(means_group)
             self.vars.append(vars_group)
 
-        for datasets in all_datas:
+        for datasets in all_datas: # loop through MotionData()
             pt = 0
             motions = []
             skeleton_idx = []
@@ -104,8 +106,10 @@ class MixedData(Dataset):
                 self.length = min(self.length, len(skeleton_idx))
             else:
                 self.length = len(skeleton_idx)
+            # final data represents all the data from many skeletons but one topology
             self.final_data.append(MixedData0(args, motions, skeleton_idx))
 
+    # adds back the mean and variance onto each motion data
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
@@ -169,8 +173,9 @@ class TestData(Dataset):
             res_group = []
             ref_shape = None
             for j in range(len(character_group)):
-                new_motion = self.get_item(i, j, item)
-                if new_motion is not None:
+                new_motion = self.get_item(i, j, item) # get motion
+                # normalize motion
+                if new_motion is not None: 
                     new_motion = new_motion.reshape((1, ) + new_motion.shape)
                     new_motion = (new_motion - self.mean[i][j]) / self.var[i][j]
                     ref_shape = new_motion
